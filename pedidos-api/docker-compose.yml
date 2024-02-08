@@ -1,3 +1,5 @@
+version: '2.21'
+
 services:
   rabbitmq:
     image: rabbitmq:3.11-management

@@ -18,6 +18,8 @@ public class RabbitMQConfig {
 
     public static final String EXCHANGE_AMQ_DIRECT = "amq.direct";
 
+    public static final String EXCHANGE_PEDIDO_DLX = "exchange.pedido.dlx";
+
     private final AmqpAdmin amqpAdmin;
 
     public RabbitMQConfig(AmqpAdmin amqpAdmin) {
@@ -30,6 +32,10 @@ public class RabbitMQConfig {
 
     public DirectExchange directExchange(String nameExchange) {
         return new DirectExchange(nameExchange, true, false, null);
+    }
+    @Bean
+    public DirectExchange directExchangeDLX() {
+        return new DirectExchange(EXCHANGE_PEDIDO_DLX, true, false, null);
     }
 
     public Binding bindingExchangeQueue(Queue queueName, DirectExchange exchangeName) {

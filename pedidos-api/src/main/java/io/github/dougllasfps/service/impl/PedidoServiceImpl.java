@@ -1,5 +1,7 @@
 package io.github.dougllasfps.service.impl;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.dougllasfps.constants.RabbitConstants;
 import io.github.dougllasfps.domain.entity.Cliente;
 import io.github.dougllasfps.domain.entity.ItemPedido;
@@ -17,6 +19,8 @@ import io.github.dougllasfps.rest.dto.PedidoDTO;
 import io.github.dougllasfps.service.PedidoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageBuilder;
+import org.springframework.amqp.core.MessageBuilderSupport;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
@@ -36,10 +40,11 @@ public class PedidoServiceImpl implements PedidoService {
     private final Produtos produtosRepository;
     private final ItemsPedido itemsPedidoRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
-    public Pedido salvar( PedidoDTO dto ) {
+    public Pedido salvar( PedidoDTO dto ) throws JsonProcessingException {
         Integer idCliente = dto.getCliente();
         Cliente cliente = clientesRepository
                 .findById(idCliente)
@@ -61,8 +66,12 @@ public class PedidoServiceImpl implements PedidoService {
         return pedido;
     }
 
-    public void enviaMensagemAoConsumerPedido(String nameQueue, PedidoDTO dto) {
-        rabbitTemplate.convertAndSend(nameQueue, dto);
+    public void enviaMensagemAoConsumerPedido(String nameQueue, PedidoDTO dto) throws JsonProcessingException {
+        byte[] bytes = objectMapper.writeValueAsString(dto).getBytes();
+        MessageBuilderSupport<Message> messageBuilderSupport = MessageBuilder.withBody(bytes)
+                .setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        Message message = messageBuilderSupport.build();
+        rabbitTemplate.send(nameQueue, message);
     }
 
     @Override

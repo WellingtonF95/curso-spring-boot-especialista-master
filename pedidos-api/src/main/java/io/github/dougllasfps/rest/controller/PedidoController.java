@@ -1,5 +1,6 @@
 package io.github.dougllasfps.rest.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.github.dougllasfps.domain.entity.ItemPedido;
 import io.github.dougllasfps.domain.entity.Pedido;
 import io.github.dougllasfps.domain.enums.StatusPedido;
@@ -8,7 +9,6 @@ import io.github.dougllasfps.rest.dto.InformacaoItemPedidoDTO;
 import io.github.dougllasfps.rest.dto.InformacoesPedidoDTO;
 import io.github.dougllasfps.rest.dto.PedidoDTO;
 import io.github.dougllasfps.service.PedidoService;
-import org.springframework.http.HttpStatus;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,7 +33,7 @@ public class PedidoController {
 
     @PostMapping
     @ResponseStatus(CREATED)
-    public Integer save( @RequestBody @Valid PedidoDTO dto ){
+    public Integer save( @RequestBody @Valid PedidoDTO dto ) throws JsonProcessingException {
         Pedido pedido = service.salvar(dto);
         return pedido.getId();
     }
