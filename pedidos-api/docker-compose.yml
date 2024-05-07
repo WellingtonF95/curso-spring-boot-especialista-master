@@ -1,6 +1,21 @@
 version: '2.21'
 
 services:
+  mysql:
+    image: mysql:8.2.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: vendas
+      MYSQL_USER: well
+      MYSQL_PASSWORD: well
+    ports:
+      - 3306:3306
+    volumes:
+      - ./dados:/var/lib/mysql
+    networks:
+      - pedido-api_default
   rabbitmq:
     image: rabbitmq:3.11-management
     container_name: rabbitmq
@@ -13,3 +28,12 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER:well
       - RABBITMQ_DEFAULT_PASS:well
+    networks:
+      - pedido-api_default
+
+networks:
+  pedido-api_default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
