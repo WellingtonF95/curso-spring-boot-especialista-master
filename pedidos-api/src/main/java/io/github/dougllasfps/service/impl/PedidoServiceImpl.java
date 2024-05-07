@@ -23,6 +23,8 @@ import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageBuilderSupport;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,10 @@ public class PedidoServiceImpl implements PedidoService {
     private final ItemsPedido itemsPedidoRepository;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+    private final KafkaTemplate<String, PedidoDTO> kafkaTemplate;
+
+    @Value("${spring.kafka.producer.topic}")
+    private String topicPedidos;
 
     @Override
     @Transactional
@@ -62,16 +68,22 @@ public class PedidoServiceImpl implements PedidoService {
         pedido.setItens(itemsPedido);
         System.out.println("Envia mensagem ao ConsumerPedido");
         enviaMensagemAoConsumerPedido(RabbitConstants.QUEUE_PEDIDO, dto);
+        enviaMensagemAoConsumerPedidoViaKafka(dto);
         System.out.println("Sucesso ao enviar a mensagem ao ConsumerPedido");
         return pedido;
     }
 
-    public void enviaMensagemAoConsumerPedido(String nameQueue, PedidoDTO dto) throws JsonProcessingException {
+    private void enviaMensagemAoConsumerPedido(String nameQueue, PedidoDTO dto) throws JsonProcessingException {
         byte[] bytes = objectMapper.writeValueAsString(dto).getBytes();
         MessageBuilderSupport<Message> messageBuilderSupport = MessageBuilder.withBody(bytes)
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON);
         Message message = messageBuilderSupport.build();
         rabbitTemplate.send(nameQueue, message);
+    }
+
+    private void enviaMensagemAoConsumerPedidoViaKafka(PedidoDTO dto) {
+        kafkaTemplate.send(topicPedidos,dto);
+        System.out.println("Sucesso ao enviar ao Kafka do consumerPedido");
     }
 
     @Override
