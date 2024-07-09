@@ -1,0 +1,37 @@
+{
+    "namespace": "org.consumerPedido",
+    "type": "record",
+    "name": "PedidoAvro",
+    "fields": [
+        {
+            "name": "cliente",
+            "type": ["int"]
+        },
+        {
+            "name": "total",
+            "type": ["double"]
+        },
+        {
+            "name": "produto",
+            "type": ["int"]
+        },
+        {
+            "name": "quantidade",
+            "type": ["int"]
+        },
+        {
+            "default": null,
+            "name": "documento",
+            "type": ["null","string"]
+        },
+        {
+            "default": null,
+            "name": "funcionario",
+            "type": ["null","string"]
+        },
+        {
+            "name": "numeroPedido",
+            "type": ["string"]
+        }
+    ]
+}

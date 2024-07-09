@@ -1,8 +1,6 @@
 package io.github.dougllasfps.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.dougllasfps.constants.RabbitConstants;
 import io.github.dougllasfps.domain.entity.Cliente;
 import io.github.dougllasfps.domain.entity.ItemPedido;
 import io.github.dougllasfps.domain.entity.Pedido;
@@ -18,17 +16,14 @@ import io.github.dougllasfps.rest.dto.ItemPedidoDTO;
 import io.github.dougllasfps.rest.dto.PedidoDTO;
 import io.github.dougllasfps.service.PedidoService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.core.MessageBuilder;
-import org.springframework.amqp.core.MessageBuilderSupport;
-import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.consumerPedido.PedidoAvro;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -41,9 +36,7 @@ public class PedidoServiceImpl implements PedidoService {
     private final Clientes clientesRepository;
     private final Produtos produtosRepository;
     private final ItemsPedido itemsPedidoRepository;
-    private final RabbitTemplate rabbitTemplate;
-    private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, PedidoDTO> kafkaTemplate;
+    private final KafkaTemplate<String, PedidoAvro> kafkaTemplate;
 
     @Value("${spring.kafka.producer.topic}")
     private String topicPedidos;
@@ -66,24 +59,37 @@ public class PedidoServiceImpl implements PedidoService {
         repository.save(pedido);
         itemsPedidoRepository.saveAll(itemsPedido);
         pedido.setItens(itemsPedido);
-        System.out.println("Envia mensagem ao ConsumerPedido");
-        enviaMensagemAoConsumerPedido(RabbitConstants.QUEUE_PEDIDO, dto);
-        enviaMensagemAoConsumerPedidoViaKafka(dto);
+        enviaMensagemAoConsumerPedidoViaKafka(dto, dto.getItems());
         System.out.println("Sucesso ao enviar a mensagem ao ConsumerPedido");
         return pedido;
     }
 
-    private void enviaMensagemAoConsumerPedido(String nameQueue, PedidoDTO dto) throws JsonProcessingException {
-        byte[] bytes = objectMapper.writeValueAsString(dto).getBytes();
-        MessageBuilderSupport<Message> messageBuilderSupport = MessageBuilder.withBody(bytes)
-                .setContentType(MessageProperties.CONTENT_TYPE_JSON);
-        Message message = messageBuilderSupport.build();
-        rabbitTemplate.send(nameQueue, message);
+    private void enviaMensagemAoConsumerPedidoViaKafka(PedidoDTO dto, List<ItemPedidoDTO> items) {
+        List<PedidoAvro> avros = convertPedido(dto, items);
+
+        avros.forEach(avro -> {
+            kafkaTemplate.send(topicPedidos, avro);
+            System.out.println("Sucesso ao enviar Avro ao Schema Registry para o consumerPedido");
+        });
     }
 
-    private void enviaMensagemAoConsumerPedidoViaKafka(PedidoDTO dto) {
-        kafkaTemplate.send(topicPedidos,dto);
-        System.out.println("Sucesso ao enviar ao Kafka do consumerPedido");
+    private static List<PedidoAvro> convertPedido(PedidoDTO pedidoDTO, List<ItemPedidoDTO> items) {
+        List<PedidoAvro> avros = new ArrayList<>();
+
+        items.forEach(item -> {
+            PedidoAvro avro = new PedidoAvro();
+            avro.setCliente(pedidoDTO.getCliente());
+            avro.setTotal(pedidoDTO.getTotal().doubleValue());
+            avro.setProduto(item.getProduto());
+            avro.setQuantidade(item.getQuantidade());
+            avro.setDocumento(pedidoDTO.getDocumento());
+            avro.setFuncionario(pedidoDTO.getFuncionario());
+            avro.setNumeroPedido(pedidoDTO.getNumeroPedido());
+
+            avros.add(avro);
+        });
+
+        return avros;
     }
 
     @Override

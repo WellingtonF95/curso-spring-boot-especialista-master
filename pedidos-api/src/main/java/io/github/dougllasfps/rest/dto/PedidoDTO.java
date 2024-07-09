@@ -24,4 +24,10 @@ public class PedidoDTO implements Serializable {
     @NotEmptyList(message = "{campo.items-pedido.obrigatorio}")
     private List<ItemPedidoDTO> items;
 
+    private String documento;
+
+    private String funcionario;
+
+    private String numeroPedido;
+
 }
