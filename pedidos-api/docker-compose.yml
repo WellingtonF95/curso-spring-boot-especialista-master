@@ -1,6 +1,20 @@
 version: '2.21'
 
 services:
+  mysql:
+    image: mysql:8.2.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: vendas
+      MYSQL_USER: well
+      MYSQL_PASSWORD: well
+    ports:
+      - 3306:3306
+    volumes:
+      - ./dados:/var/lib/mysql
+
   rabbitmq:
     image: rabbitmq:3.11-management
     container_name: rabbitmq
@@ -13,3 +27,87 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER:well
       - RABBITMQ_DEFAULT_PASS:well
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181 #Define porta onde o servidor zookeeper inicializara
+      ZOOKEEPER_TICK_TIME: 2000 #Define o intervalo de tempo em 2 segundos para sincronizacao de relogio entre os servidores do cluster
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+      - 29092:29092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092, PLAINTEXT_HOST://localhost:29092 #Define os enderecos que o broker usara para se conectar com os clients
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT #Mapeia protocolos de seguranca para os listener definidos na propriedade acima
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT #Define o listener que sera usado para a comunicacao entre brokers dentro do cluster kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181 #Define o endereco e porta do servico zookeeper que o kafka utilizara no momento da inicializacao
+      KAFKA_GROUP_INITIAL_REBALANCED_DELAY_MS: 100 #Define atraso inicial para o rebalanceamento do grupo de consumidores
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=INFO,kafka.producer.async.DefaultEventHandler=INFO,state.change.logger=INFO"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "true" #Se nao encontrara nenhuma ACL, todos os usuarios tem autorizacao a executar a acao
+      CONFLUENT_METRICS_ENABLE: "true" #Ativa as metricas da Confluent, que serao enviadas para o control center
+      KAFKA_AUTHORIZER_CLASS_NAME: "kafka.security.authorizer.AclAuthorizer" #Especifica a classe que sera usada para controle de acesso
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1 #Define o fator de replicacao para o log de estado de transacoes
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1 #Define o numero minimo de replicas em sincronia para o log de estado de transacoes
+
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.4.0
+    container_name: schema-registry
+    hostname: schema-registry
+    ports:
+      - 8081:8081
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry #Nome do host para o schema registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092 #Endereco do servidor Kafka para o schema registry
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081 #Define os listeners para o schema registry, permite que o schema registry possa ser acessado externamente
+
+  control-center:
+    image: confluentinc/cp-enterprise-control-center:6.0.1
+    hostname: control-center
+    container_name: control-center
+    depends_on:
+      - kafka
+      - schema-registry
+    ports:
+      - 9021:9021
+    environment:
+      CONTROL_CENTER_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092 #Define o endereco do servidor kafka -- OBRIGATORIO
+      CONTROL_CENTER_REPLICATION_FACTOR: 1 #Define o fator de replicacao para os topicos internos criados pelo Control Center
+      CONTROL_CENTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081 #URL do schema register -- OBRIGATORIO
+      CONFLUENT_METRICS_TOPIC_REPLICATION: 1
+      CONTROL_CENTER_COMMAND_TOPIC_REPLICATION: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_REPLICATION: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_PARTITIONS: 1
+      CONTROL_CENTER_INTERNAL_TOPICS_REPLICATION: 1
+      CONTROL_CENTER_MONITORING_INTERCEPTOR_TOPIC_PARTITIONS: 1
+      CONTROL_CENTER_STREAMS_NUM_STREAM_THREADS: 1
+      CONTROL_CENTER_MODE_ENABLE: "all"
+      CONTROL_CENTER_CONSUMERS_VIEW_ENABLE: "true"
+      CONTROL_CENTER_STREAMS_CACHE_MAX_BYTES_BUFFERING: 104857600
+      PORT: 9021
+    command:
+      - bash
+      - -c
+      - |
+        echo "Waiting two minutes for Kafka brokers to start and
+               necessary topics to be available"
+        sleep 60
+        /etc/confluent/docker/run
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
